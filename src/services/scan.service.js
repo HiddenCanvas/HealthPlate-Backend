@@ -23,7 +23,7 @@ const scanBarcode = async (barcode) => {
   const p = response.data.product;
   const nutriments = p.nutriments || {};
 
-  // 3. Simpan ke database lokal
+  // 3. Simpan ke database lokal termasuk gambar
   const newProduct = {
     barcode_code:   barcode,
     product_name:   p.product_name || p.product_name_en || 'Unknown',
@@ -34,6 +34,7 @@ const scanBarcode = async (barcode) => {
     carbohydrate_g: parseFloat(nutriments['carbohydrates_100g']) || 0,
     protein_g:      parseFloat(nutriments['proteins_100g'])    || 0,
     fat_g:          parseFloat(nutriments['fat_100g'])         || 0,
+    image_url:      p.image_front_url || p.image_url || null,
   };
 
   const { data: savedProduct, error } = await supabaseAdmin
