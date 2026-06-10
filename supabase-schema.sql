@@ -240,3 +240,67 @@ CREATE POLICY "food_products_select" ON "food_products"
     FOR SELECT USING (true);
 CREATE POLICY "food_category_select" ON "food_category"
     FOR SELECT USING (true);
+
+
+-- Tabel articles
+CREATE TABLE IF NOT EXISTS articles (
+  article_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  summary TEXT,
+  category TEXT,
+  image_url TEXT,
+  tags TEXT[],
+  status TEXT DEFAULT 'published',
+  views INT DEFAULT 0,
+  likes INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Tabel article_likes
+CREATE TABLE IF NOT EXISTS article_likes (
+  like_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+  article_id UUID REFERENCES articles(article_id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, article_id)
+);
+
+-- Tabel article_bookmarks
+CREATE TABLE IF NOT EXISTS article_bookmarks (
+  bookmark_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+  article_id UUID REFERENCES articles(article_id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, article_id)
+);
+
+-- Tabel tips
+CREATE TABLE IF NOT EXISTS tips (
+  tip_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  category TEXT,
+  image_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RPC functions untuk increment/decrement
+CREATE OR REPLACE FUNCTION increment_article_views(article_id UUID)
+RETURNS VOID AS $$
+  UPDATE articles SET views = views + 1 WHERE article_id = $1;
+$$ LANGUAGE sql;
+
+CREATE OR REPLACE FUNCTION increment_article_likes(article_id UUID)
+RETURNS VOID AS $$
+  UPDATE articles SET likes = likes + 1 WHERE article_id = $1;
+$$ LANGUAGE sql;
+
+CREATE OR REPLACE FUNCTION decrement_article_likes(article_id UUID)
+RETURNS VOID AS $$
+  UPDATE articles SET likes = GREATEST(likes - 1, 0) WHERE article_id = $1;
+$$ LANGUAGE sql;
