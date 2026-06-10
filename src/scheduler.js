@@ -1,26 +1,55 @@
-const cron = require('node-cron');
-const { sendMealReminder } = require('./services/notification.service');
+﻿const cron = require('node-cron');
+const { supabaseAdmin } = require('./config/supabase');
+const { sendNotification, saveNotification } = require('./services/notification.service');
+
+// Kirim notifikasi ke semua user yang punya setting aktif untuk type & jam tertentu
+const sendScheduledNotif = async (type, currentHour, currentMinute) => {
+  const { data: settings, error } = await supabaseAdmin
+    .from('notification_settings')
+    .select('user_id, custom_message, users!notification_settings_user_id_fkey(fcm_token)')
+    .eq('type', type)
+    .eq('is_enabled', true)
+    .eq('hour', currentHour)
+    .eq('minute', currentMinute);
+
+  if (error || !settings || settings.length === 0) return;
+
+  const titles = {
+    breakfast: 'Waktunya Sarapan!',
+    lunch:     'Waktunya Makan Siang!',
+    dinner:    'Waktunya Makan Malam!',
+    water:     'Jangan Lupa Minum Air!'
+  };
+
+  const title = titles[type];
+
+  for (const setting of settings) {
+    const fcmToken = setting.users?.fcm_token;
+    const message = setting.custom_message || title;
+
+    if (fcmToken) {
+      await sendNotification(fcmToken, title, message);
+    }
+    await saveNotification(setting.user_id, title, message, 'general');
+  }
+
+  console.log(`[Scheduler] ${title} dikirim ke ${settings.length} user.`);
+};
 
 const startScheduler = () => {
-  // Sarapan jam 06.15
-  cron.schedule('15 6 * * *', () => {
-    console.log('[Scheduler] Mengirim notifikasi sarapan...');
-    sendMealReminder('breakfast');
+  // Jalankan setiap menit, cek siapa yang perlu dikirimi notif
+  cron.schedule('* * * * *', async () => {
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+    const hour   = now.getHours();
+    const minute = now.getMinutes();
+
+    await sendScheduledNotif('breakfast', hour, minute);
+    await sendScheduledNotif('lunch',     hour, minute);
+    await sendScheduledNotif('dinner',    hour, minute);
+    await sendScheduledNotif('water',     hour, minute);
   }, { timezone: 'Asia/Jakarta' });
 
-  // Makan siang jam 12.00
-  cron.schedule('0 12 * * *', () => {
-    console.log('[Scheduler] Mengirim notifikasi makan siang...');
-    sendMealReminder('lunch');
-  }, { timezone: 'Asia/Jakarta' });
-
-  // Makan malam jam 18.30
-  cron.schedule('30 18 * * *', () => {
-    console.log('[Scheduler] Mengirim notifikasi makan malam...');
-    sendMealReminder('dinner');
-  }, { timezone: 'Asia/Jakarta' });
-
-  console.log('[Scheduler] Berjalan. Notifikasi: 06.15, 12.00, 18.30 WIB');
+  console.log('[Scheduler] Berjalan. Cek notifikasi setiap menit berdasarkan settings user.');
 };
 
 module.exports = { startScheduler };

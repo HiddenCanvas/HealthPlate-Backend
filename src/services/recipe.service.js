@@ -1,9 +1,9 @@
-const { supabaseAdmin } = require('../config/supabase');
+﻿const { supabaseAdmin } = require('../config/supabase');
 
 const getAllRecipes = async () => {
   const { data, error } = await supabaseAdmin
     .from('recipes')
-    .select('*, users(name), bahan_resep(*, food_products(product_name, serving_size_g, calories_kcal))')
+    .select('*, users!recipes_user_id_fkey(name), bahan_resep(*, food_products(product_name, serving_size_g, calories_kcal))')
     .order('created_at', { ascending: false });
   if (error) throw { statusCode: 400, message: error.message };
   return data;
@@ -12,7 +12,7 @@ const getAllRecipes = async () => {
 const getRecipeById = async (id) => {
   const { data, error } = await supabaseAdmin
     .from('recipes')
-    .select('*, users(name), bahan_resep(*, food_products(product_name, serving_size_g, calories_kcal, protein_g, carbohydrate_g, fat_g))')
+    .select('*, users!recipes_user_id_fkey(name), bahan_resep(*, food_products(product_name, serving_size_g, calories_kcal, protein_g, carbohydrate_g, fat_g))')
     .eq('recipe_id', id)
     .single();
   if (error) throw { statusCode: 404, message: 'Resep tidak ditemukan.' };
@@ -34,6 +34,16 @@ const createRecipe = async (userId, body) => {
 };
 
 const updateRecipe = async (userId, recipeId, body) => {
+  const { data: recipe, error: checkError } = await supabaseAdmin
+    .from('recipes')
+    .select('recipe_id')
+    .eq('recipe_id', recipeId)
+    .eq('user_id', userId)
+    .single();
+
+  if (checkError || !recipe)
+    throw { statusCode: 403, message: 'Resep tidak ditemukan atau bukan milik Anda.' };
+
   const allowed = ['recipe_name', 'description', 'instructions'];
   const updates = {};
   allowed.forEach(k => { if (body[k] !== undefined) updates[k] = body[k]; });
@@ -43,7 +53,6 @@ const updateRecipe = async (userId, recipeId, body) => {
     .from('recipes')
     .update(updates)
     .eq('recipe_id', recipeId)
-    .eq('user_id', userId)
     .select()
     .single();
   if (error) throw { statusCode: 400, message: error.message };
@@ -51,11 +60,20 @@ const updateRecipe = async (userId, recipeId, body) => {
 };
 
 const deleteRecipe = async (userId, recipeId) => {
+  const { data: recipe, error: checkError } = await supabaseAdmin
+    .from('recipes')
+    .select('recipe_id')
+    .eq('recipe_id', recipeId)
+    .eq('user_id', userId)
+    .single();
+
+  if (checkError || !recipe)
+    throw { statusCode: 403, message: 'Resep tidak ditemukan atau bukan milik Anda.' };
+
   const { error } = await supabaseAdmin
     .from('recipes')
     .delete()
-    .eq('recipe_id', recipeId)
-    .eq('user_id', userId);
+    .eq('recipe_id', recipeId);
   if (error) throw { statusCode: 400, message: error.message };
 };
 
@@ -64,14 +82,14 @@ const addIngredient = async (userId, recipeId, body) => {
   if (!product_id || !quantity || !unit)
     throw { statusCode: 400, message: 'product_id, quantity, dan unit wajib diisi.' };
 
-  // Pastikan resep milik user
   const { data: recipe, error: recipeError } = await supabaseAdmin
     .from('recipes')
     .select('recipe_id')
     .eq('recipe_id', recipeId)
     .eq('user_id', userId)
     .single();
-  if (recipeError || !recipe) throw { statusCode: 404, message: 'Resep tidak ditemukan.' };
+  if (recipeError || !recipe)
+    throw { statusCode: 403, message: 'Resep tidak ditemukan atau bukan milik Anda.' };
 
   const { data, error } = await supabaseAdmin
     .from('bahan_resep')
@@ -83,14 +101,14 @@ const addIngredient = async (userId, recipeId, body) => {
 };
 
 const deleteIngredient = async (userId, recipeId, bahanId) => {
-  // Pastikan resep milik user
   const { data: recipe, error: recipeError } = await supabaseAdmin
     .from('recipes')
     .select('recipe_id')
     .eq('recipe_id', recipeId)
     .eq('user_id', userId)
     .single();
-  if (recipeError || !recipe) throw { statusCode: 404, message: 'Resep tidak ditemukan.' };
+  if (recipeError || !recipe)
+    throw { statusCode: 403, message: 'Resep tidak ditemukan atau bukan milik Anda.' };
 
   const { error } = await supabaseAdmin
     .from('bahan_resep')
@@ -100,4 +118,7 @@ const deleteIngredient = async (userId, recipeId, bahanId) => {
   if (error) throw { statusCode: 400, message: error.message };
 };
 
-module.exports = { getAllRecipes, getRecipeById, createRecipe, updateRecipe, deleteRecipe, addIngredient, deleteIngredient };
+module.exports = {
+  getAllRecipes, getRecipeById, createRecipe, updateRecipe,
+  deleteRecipe, addIngredient, deleteIngredient
+};

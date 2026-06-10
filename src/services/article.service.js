@@ -1,4 +1,4 @@
-const { supabaseAdmin } = require('../config/supabase');
+﻿const { supabaseAdmin } = require('../config/supabase');
 
 const getAllArticles = async ({ page = 1, limit = 10, category } = {}) => {
   const from = (page - 1) * limit;
@@ -6,7 +6,7 @@ const getAllArticles = async ({ page = 1, limit = 10, category } = {}) => {
 
   let query = supabaseAdmin
     .from('articles')
-    .select('article_id, title, summary, category, image_url, views, likes, created_at, users(name, avatar_url)', { count: 'exact' })
+    .select('article_id, title, summary, category, image_url, views, likes, created_at, users!articles_user_id_fkey(name, avatar_url)', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(from, to);
 
@@ -20,7 +20,7 @@ const getAllArticles = async ({ page = 1, limit = 10, category } = {}) => {
 const getArticleById = async (id) => {
   const { data, error } = await supabaseAdmin
     .from('articles')
-    .select('*, users(name, avatar_url)')
+    .select('*, users!articles_user_id_fkey(name, avatar_url)')
     .eq('article_id', id)
     .single();
   if (error) throw { statusCode: 404, message: 'Artikel tidak ditemukan.' };
@@ -28,7 +28,8 @@ const getArticleById = async (id) => {
 };
 
 const incrementView = async (id) => {
-  await supabaseAdmin.rpc('increment_article_views', { article_id: id });
+  const { error } = await supabaseAdmin.rpc('increment_article_views', { article_id: id });
+  if (error) console.warn('[incrementView] RPC error:', error.message);
 };
 
 const createArticle = async (userId, body) => {
@@ -46,6 +47,16 @@ const createArticle = async (userId, body) => {
 };
 
 const updateArticle = async (userId, articleId, body) => {
+  const { data: existing, error: checkError } = await supabaseAdmin
+    .from('articles')
+    .select('article_id')
+    .eq('article_id', articleId)
+    .eq('user_id', userId)
+    .single();
+
+  if (checkError || !existing)
+    throw { statusCode: 403, message: 'Artikel tidak ditemukan atau bukan milik Anda.' };
+
   const allowed = ['title', 'content', 'summary', 'category', 'image_url', 'tags', 'status'];
   const updates = {};
   allowed.forEach(k => { if (body[k] !== undefined) updates[k] = body[k]; });
@@ -55,7 +66,6 @@ const updateArticle = async (userId, articleId, body) => {
     .from('articles')
     .update(updates)
     .eq('article_id', articleId)
-    .eq('user_id', userId)
     .select()
     .single();
   if (error) throw { statusCode: 400, message: error.message };
@@ -63,16 +73,24 @@ const updateArticle = async (userId, articleId, body) => {
 };
 
 const deleteArticle = async (userId, articleId) => {
+  const { data: existing, error: checkError } = await supabaseAdmin
+    .from('articles')
+    .select('article_id')
+    .eq('article_id', articleId)
+    .eq('user_id', userId)
+    .single();
+
+  if (checkError || !existing)
+    throw { statusCode: 403, message: 'Artikel tidak ditemukan atau bukan milik Anda.' };
+
   const { error } = await supabaseAdmin
     .from('articles')
     .delete()
-    .eq('article_id', articleId)
-    .eq('user_id', userId);
+    .eq('article_id', articleId);
   if (error) throw { statusCode: 400, message: error.message };
 };
 
 const likeArticle = async (userId, articleId) => {
-  // Cek apakah sudah like
   const { data: existing } = await supabaseAdmin
     .from('article_likes')
     .select('like_id')
@@ -81,12 +99,10 @@ const likeArticle = async (userId, articleId) => {
     .single();
 
   if (existing) {
-    // Unlike
     await supabaseAdmin.from('article_likes').delete().eq('like_id', existing.like_id);
     await supabaseAdmin.rpc('decrement_article_likes', { article_id: articleId });
     return { liked: false };
   } else {
-    // Like
     await supabaseAdmin.from('article_likes').insert({ user_id: userId, article_id: articleId });
     await supabaseAdmin.rpc('increment_article_likes', { article_id: articleId });
     return { liked: true };
