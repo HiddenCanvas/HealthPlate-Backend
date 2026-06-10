@@ -1,3 +1,4 @@
+
 const express = require('express');
 const router = express.Router();
 
@@ -10,5 +11,8 @@ router.use('/scan', require('./scan.routes'));
 router.use('/recipe', require('./recipe.routes'));
 router.use('/upload', require('./upload.routes'));
 router.use('/notification', require('./notification.routes'));
+router.use('/article', require('./article.routes'));   // ← BARU
+router.use('/tips', require('./tips.routes'));         // ← BARU
+
 
 module.exports = router;
