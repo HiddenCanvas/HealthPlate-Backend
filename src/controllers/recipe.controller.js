@@ -1,5 +1,12 @@
 const srv = require('../services/recipe.service');
 
+const getCategories = async (req, res, next) => {
+  try {
+    const data = await srv.getCategories();
+    return res.status(200).json({ success: true, data });
+  } catch (err) { next(err); }
+};
+
 const getAllRecipes = async (req, res, next) => {
   try {
     const data = await srv.getAllRecipes();
@@ -10,6 +17,14 @@ const getAllRecipes = async (req, res, next) => {
 const getRecipeById = async (req, res, next) => {
   try {
     const data = await srv.getRecipeById(req.params.id);
+    return res.status(200).json({ success: true, data });
+  } catch (err) { next(err); }
+};
+
+const searchRecipes = async (req, res, next) => {
+  try {
+    const q = req.query.q || '';
+    const data = await srv.searchRecipes(q);
     return res.status(200).json({ success: true, data });
   } catch (err) { next(err); }
 };
@@ -49,4 +64,31 @@ const deleteIngredient = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { getAllRecipes, getRecipeById, createRecipe, updateRecipe, deleteRecipe, addIngredient, deleteIngredient };
+const addStep = async (req, res, next) => {
+  try {
+    const data = await srv.addStep(req.user.id, req.params.id, req.body);
+    return res.status(201).json({ success: true, message: 'Langkah berhasil ditambahkan.', data });
+  } catch (err) { next(err); }
+};
+
+const deleteStep = async (req, res, next) => {
+  try {
+    await srv.deleteStep(req.user.id, req.params.id, req.params.stepId);
+    return res.status(200).json({ success: true, message: 'Langkah berhasil dihapus.' });
+  } catch (err) { next(err); }
+};
+
+
+module.exports = { 
+  getCategories,
+  getAllRecipes, 
+  getRecipeById, 
+  searchRecipes,
+  createRecipe, 
+  updateRecipe, 
+  deleteRecipe, 
+  addIngredient, 
+  deleteIngredient,
+  addStep,
+  deleteStep
+};

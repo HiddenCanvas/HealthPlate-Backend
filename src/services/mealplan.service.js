@@ -1,4 +1,4 @@
-﻿const { supabaseAdmin } = require('../config/supabase');
+const { supabaseAdmin } = require('../config/supabase');
 
 // Helper: derive meal_day dari meal_date kalau tidak dikirim
 const getDayName = (dateStr) => {
@@ -35,11 +35,22 @@ const createMealPlan = async (userId, { plan_name, status = 'Draft', activated_a
 const getMealPlanById = async (userId, planId) => {
   const { data, error } = await supabaseAdmin
     .from('meal_plans')
-    .select('*, meal_plan_items(*, food_products(product_name, brand_name, calories_kcal, protein_g, carbohydrate_g, fat_g, serving_size_g))')
+    .select('*, meal_plan_items(*, recipes(recipe_name, image_url, cooking_time, difficulty, calories_kcal, protein_g, carbohydrate_g, fat_g, sugar_g, bahan_resep(quantity, unit, food_products(product_name)), recipe_steps(step_number, instruction)))')
     .eq('plan_id', planId)
     .eq('user_id', userId)
     .single();
+    
   if (error) throw { statusCode: 404, message: 'Meal plan tidak ditemukan.' };
+  
+  // Urutkan recipe_steps jika ada
+  if (data.meal_plan_items) {
+    data.meal_plan_items.forEach(item => {
+      if (item.recipes && item.recipes.recipe_steps) {
+        item.recipes.recipe_steps.sort((a, b) => a.step_number - b.step_number);
+      }
+    });
+  }
+  
   return data;
 };
 
@@ -62,12 +73,21 @@ const getMealPlanByDate = async (userId, date) => {
   // Ambil items untuk tanggal tersebut
   const { data: items, error: itemError } = await supabaseAdmin
     .from('meal_plan_items')
-    .select('*, food_products(product_name, brand_name, calories_kcal, protein_g, carbohydrate_g, fat_g, serving_size_g)')
+    .select('*, recipes(recipe_name, image_url, cooking_time, difficulty, calories_kcal, protein_g, carbohydrate_g, fat_g, sugar_g, bahan_resep(quantity, unit, food_products(product_name)), recipe_steps(step_number, instruction))')
     .in('plan_id', planIds)
     .eq('meal_date', date)
     .order('meal_time');
 
   if (itemError) throw { statusCode: 400, message: itemError.message };
+
+  // Urutkan recipe_steps jika ada
+  if (items) {
+    items.forEach(item => {
+      if (item.recipes && item.recipes.recipe_steps) {
+        item.recipes.recipe_steps.sort((a, b) => a.step_number - b.step_number);
+      }
+    });
+  }
 
   return { date, plans, items: items || [] };
 };
@@ -99,10 +119,10 @@ const deleteMealPlan = async (userId, planId) => {
 
 // Tambah item untuk 1 hari spesifik (meal_date wajib)
 const addItem = async (userId, planId, body) => {
-  const { product_id, meal_date, meal_time, portion, meal_day } = body;
+  const { recipe_id, meal_date, meal_time, portion, meal_day } = body;
 
-  if (!product_id || !meal_date || !meal_time || !portion)
-    throw { statusCode: 400, message: 'product_id, meal_date, meal_time, dan portion wajib diisi.' };
+  if (!recipe_id || !meal_date || !meal_time || !portion)
+    throw { statusCode: 400, message: 'recipe_id, meal_date, meal_time, dan portion wajib diisi.' };
 
   // Validasi format tanggal
   if (isNaN(new Date(meal_date).getTime()))
@@ -117,12 +137,20 @@ const addItem = async (userId, planId, body) => {
     .single();
   if (planError || !plan) throw { statusCode: 404, message: 'Meal plan tidak ditemukan.' };
 
+  // Validasi apakah resep exists
+  const { data: recipe, error: recipeErr } = await supabaseAdmin
+    .from('recipes')
+    .select('recipe_id')
+    .eq('recipe_id', recipe_id)
+    .single();
+  if (recipeErr || !recipe) throw { statusCode: 400, message: 'Resep tidak ditemukan.' };
+
   // Auto-derive meal_day dari meal_date kalau tidak dikirim
   const resolvedMealDay = meal_day || getDayName(meal_date);
 
   const { data, error } = await supabaseAdmin
     .from('meal_plan_items')
-    .insert({ plan_id: planId, product_id, meal_date, meal_day: resolvedMealDay, meal_time, portion })
+    .insert({ plan_id: planId, recipe_id, meal_date, meal_day: resolvedMealDay, meal_time, portion })
     .select()
     .single();
   if (error) throw { statusCode: 400, message: error.message };
