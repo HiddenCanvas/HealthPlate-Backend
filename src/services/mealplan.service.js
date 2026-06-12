@@ -6,14 +6,38 @@ const getDayName = (dateStr) => {
   return days[new Date(dateStr).getDay()];
 };
 
+const mapMealPlan = (plan) => {
+  if (!plan) return null;
+
+  const items = plan.meal_plan_items || plan.items || [];
+
+  return {
+    ...plan,
+    items: items.map(item => ({
+      item_id: item.item_id,
+      recipe_id: item.recipe_id,
+      meal_date: item.meal_date,
+      meal_time: item.meal_time,
+      meal_day: item.meal_day,
+      portion: item.portion,
+      recipe: item.recipes
+        ? {
+            recipe_id: item.recipes.recipe_id || item.recipe_id || null,
+            recipe_name: item.recipes.recipe_name || null
+          }
+        : null
+    }))
+  };
+};
+
 const getAllMealPlans = async (userId) => {
   const { data, error } = await supabaseAdmin
     .from('meal_plans')
-    .select('*')
+    .select('*, meal_plan_items(*, recipes(recipe_id, recipe_name))')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
   if (error) throw { statusCode: 400, message: error.message };
-  return data;
+  return data.map(mapMealPlan);
 };
 
 const createMealPlan = async (userId, { plan_name, status = 'Draft', activated_at, expires_at }) => {
@@ -29,13 +53,13 @@ const createMealPlan = async (userId, { plan_name, status = 'Draft', activated_a
     .select()
     .single();
   if (error) throw { statusCode: 400, message: error.message };
-  return data;
+  return getMealPlanById(userId, data.plan_id);
 };
 
 const getMealPlanById = async (userId, planId) => {
   const { data, error } = await supabaseAdmin
     .from('meal_plans')
-    .select('*, meal_plan_items(*, recipes(recipe_name, image_url, cooking_time, difficulty, calories_kcal, protein_g, carbohydrate_g, fat_g, sugar_g, bahan_resep(quantity, unit, food_products(product_name)), recipe_steps(step_number, instruction)))')
+    .select('*, meal_plan_items(*, recipes(recipe_id, recipe_name, image_url, cooking_time, difficulty, calories_kcal, protein_g, carbohydrate_g, fat_g, sugar_g, bahan_resep(quantity, unit, food_products(product_name)), recipe_steps(step_number, instruction)))')
     .eq('plan_id', planId)
     .eq('user_id', userId)
     .single();
@@ -51,7 +75,7 @@ const getMealPlanById = async (userId, planId) => {
     });
   }
   
-  return data;
+  return mapMealPlan(data);
 };
 
 // GET meal plan berdasarkan tanggal tertentu
@@ -73,7 +97,7 @@ const getMealPlanByDate = async (userId, date) => {
   // Ambil items untuk tanggal tersebut
   const { data: items, error: itemError } = await supabaseAdmin
     .from('meal_plan_items')
-    .select('*, recipes(recipe_name, image_url, cooking_time, difficulty, calories_kcal, protein_g, carbohydrate_g, fat_g, sugar_g, bahan_resep(quantity, unit, food_products(product_name)), recipe_steps(step_number, instruction))')
+    .select('*, recipes(recipe_id, recipe_name, image_url, cooking_time, difficulty, calories_kcal, protein_g, carbohydrate_g, fat_g, sugar_g, bahan_resep(quantity, unit, food_products(product_name)), recipe_steps(step_number, instruction))')
     .in('plan_id', planIds)
     .eq('meal_date', date)
     .order('meal_time');
@@ -105,7 +129,7 @@ const updateMealPlan = async (userId, planId, body) => {
     .select()
     .single();
   if (error) throw { statusCode: 400, message: error.message };
-  return data;
+  return getMealPlanById(userId, data.plan_id);
 };
 
 const deleteMealPlan = async (userId, planId) => {

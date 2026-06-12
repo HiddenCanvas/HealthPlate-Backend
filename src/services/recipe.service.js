@@ -40,6 +40,36 @@ const calculateNutrition = async (recipeId) => {
     .eq('recipe_id', recipeId);
 };
 
+const mapRecipe = (recipe) => {
+  if (!recipe) return null;
+
+  const recipeSteps = recipe.recipe_steps || recipe.steps || [];
+  const ingredients = recipe.bahan_resep || recipe.ingredients || [];
+
+  return {
+    ...recipe,
+    steps: recipeSteps
+      .map(step => ({
+        step_id: step.step_id,
+        step_number: step.step_number,
+        instruction: step.instruction
+      }))
+      .sort((a, b) => a.step_number - b.step_number),
+    ingredients: ingredients.map(item => ({
+      bahan_id: item.bahan_id,
+      product_id: item.product_id,
+      quantity: item.quantity,
+      unit: item.unit,
+      food_product: item.food_products
+        ? {
+            product_id: item.food_products.product_id || item.product_id || null,
+            name: item.food_products.name || item.food_products.product_name || null
+          }
+        : null
+    }))
+  };
+};
+
 
 // --- Meal Categories & Packages ---
 
@@ -57,7 +87,7 @@ const getCategories = async () => {
 const getAllRecipes = async () => {
   const { data, error } = await supabaseAdmin
     .from('recipes')
-    .select('*, users!recipes_user_id_fkey(name), meal_packages(package_name, meal_categories(category_name)), bahan_resep(*, food_products(product_name, serving_size_g, calories_kcal)), recipe_steps(*)')
+    .select('*, users!recipes_user_id_fkey(name), meal_packages(package_name, meal_categories(category_name)), bahan_resep(*, food_products(product_id, product_name, serving_size_g, calories_kcal)), recipe_steps(*)')
     .order('created_at', { ascending: false });
   if (error) throw { statusCode: 400, message: error.message };
   
@@ -68,13 +98,13 @@ const getAllRecipes = async () => {
     }
   });
 
-  return data;
+  return data.map(mapRecipe);
 };
 
 const getRecipeById = async (id) => {
   const { data, error } = await supabaseAdmin
     .from('recipes')
-    .select('*, users!recipes_user_id_fkey(name), meal_packages(package_name, meal_categories(category_name)), bahan_resep(*, food_products(product_name, serving_size_g, calories_kcal, protein_g, carbohydrate_g, fat_g, sugar_g)), recipe_steps(*)')
+    .select('*, users!recipes_user_id_fkey(name), meal_packages(package_name, meal_categories(category_name)), bahan_resep(*, food_products(product_id, product_name, serving_size_g, calories_kcal, protein_g, carbohydrate_g, fat_g, sugar_g)), recipe_steps(*)')
     .eq('recipe_id', id)
     .single();
     
@@ -84,17 +114,17 @@ const getRecipeById = async (id) => {
     data.recipe_steps.sort((a, b) => a.step_number - b.step_number);
   }
   
-  return data;
+  return mapRecipe(data);
 };
 
 const searchRecipes = async (q) => {
   const { data, error } = await supabaseAdmin
     .from('recipes')
-    .select('*, users!recipes_user_id_fkey(name), meal_packages(package_name, meal_categories(category_name))')
+    .select('*, users!recipes_user_id_fkey(name), meal_packages(package_name, meal_categories(category_name)), bahan_resep(*, food_products(product_id, product_name)), recipe_steps(*)')
     .ilike('recipe_name', '%' + q + '%')
     .limit(20);
   if (error) throw { statusCode: 400, message: error.message };
-  return data;
+  return data.map(mapRecipe);
 };
 
 const createRecipe = async (userId, body) => {

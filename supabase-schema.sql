@@ -11,7 +11,9 @@
 CREATE TABLE IF NOT EXISTS "food_category" (
     "category_id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "name"        VARCHAR(255) NOT NULL,
-    "created_at"  TIMESTAMPTZ DEFAULT now()
+    "description" TEXT,
+    "created_at"  TIMESTAMPTZ DEFAULT now(),
+    "updated_at"  TIMESTAMPTZ DEFAULT now()
 );
 
 -- 1b. Meal Category
@@ -41,8 +43,10 @@ CREATE TABLE IF NOT EXISTS "food_products" (
     "carbohydrate_g" DECIMAL(8, 2) NOT NULL DEFAULT 0,
     "protein_g"      DECIMAL(8, 2) NOT NULL DEFAULT 0,
     "fat_g"          DECIMAL(8, 2) NOT NULL DEFAULT 0,
+    "sodium_mg"      DECIMAL(8, 2),
     "image_url"      TEXT, -- Ditambahkan dari update log terbaru
-    "created_at"     TIMESTAMPTZ DEFAULT now()
+    "created_at"     TIMESTAMPTZ DEFAULT now(),
+    "updated_at"     TIMESTAMPTZ DEFAULT now()
 );
 
 -- 3. Users (Terintegrasi dengan Supabase Auth)
@@ -141,7 +145,8 @@ CREATE TABLE IF NOT EXISTS "meal_plans" (
     "status"       VARCHAR(20) NOT NULL DEFAULT 'Draft' CHECK (status IN ('Active', 'Inactive', 'Draft')),
     "activated_at" DATE, -- Ditambahkan dari update metadata aktivasi
     "expires_at"   DATE, -- Ditambahkan dari update metadata aktivasi
-    "created_at"   TIMESTAMPTZ DEFAULT now()
+    "created_at"   TIMESTAMPTZ DEFAULT now(),
+    "updated_at"   TIMESTAMPTZ DEFAULT now()
 );
 
 -- 10. Meal Plan Items
