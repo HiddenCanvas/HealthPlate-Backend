@@ -15,12 +15,14 @@ const sendNotification = async (fcmToken, title, message) => {
 };
 
 const saveNotification = async (userId, title, message, type) => {
-  await supabaseAdmin.from('notifications').insert({
+  const { data, error } = await supabaseAdmin.from('notifications').insert({
     user_id: userId,
     title,
     message,
     type
-  });
+  }).select().single();
+  if (error) throw { statusCode: 400, message: error.message };
+  return data;
 };
 
 const sendMealReminder = async (mealType) => {
@@ -38,7 +40,6 @@ const sendMealReminder = async (mealType) => {
   const title = titles[mealType];
   const message = messages[mealType];
 
-  // Ambil semua user yang punya fcm_token
   const { data: users, error } = await supabaseAdmin
     .from('users')
     .select('user_id, fcm_token')
@@ -54,4 +55,179 @@ const sendMealReminder = async (mealType) => {
   console.log('[Notif] ' + title + ' dikirim ke ' + users.length + ' user.');
 };
 
-module.exports = { sendNotification, saveNotification, sendMealReminder };
+const saveFcmToken = async (userId, token) => {
+  if (!token) throw { statusCode: 400, message: 'fcm_token wajib diisi.' };
+
+  const { data, error } = await supabaseAdmin
+    .from('users')
+    .update({ fcm_token: token })
+    .eq('user_id', userId)
+    .select()
+    .single();
+
+  if (error) throw { statusCode: 400, message: error.message };
+  return data;
+};
+
+const getNotifications = async (userId, page = 1, limit = 10) => {
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  const { data, count, error } = await supabaseAdmin
+    .from('notifications')
+    .select('*', { count: 'exact' })
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .range(from, to);
+
+  if (error) throw { statusCode: 400, message: error.message };
+
+  return {
+    data: data || [],
+    page: Number(page),
+    limit: Number(limit),
+    total_count: count || 0
+  };
+};
+
+const markAsRead = async (userId, notificationId) => {
+  const { data, error } = await supabaseAdmin
+    .from('notifications')
+    .update({ is_read: true })
+    .eq('notification_id', notificationId)
+    .eq('user_id', userId)
+    .select()
+    .single();
+
+  if (error) throw { statusCode: 400, message: error.message };
+  return data;
+};
+
+const markAllAsRead = async (userId) => {
+  const { data, error } = await supabaseAdmin
+    .from('notifications')
+    .update({ is_read: true })
+    .eq('user_id', userId)
+    .eq('is_read', false)
+    .select();
+
+  if (error) throw { statusCode: 400, message: error.message };
+  return data;
+};
+
+const createNotification = async (userId, payload) => {
+  const { title, message, type = 'calorie_alert' } = payload;
+  if (!title || !message) {
+    throw { statusCode: 400, message: 'title dan message wajib diisi.' };
+  }
+
+  // Save to database
+  const notif = await saveNotification(userId, title, message, type);
+
+  // Send push notification if fcm_token exists
+  const { data: user } = await supabaseAdmin
+    .from('users')
+    .select('fcm_token')
+    .eq('user_id', userId)
+    .single();
+
+  // Get push setting
+  const { data: settings } = await supabaseAdmin
+    .from('notification_settings')
+    .select('push_enabled')
+    .eq('user_id', userId)
+    .limit(1)
+    .single();
+
+  const pushEnabled = settings ? settings.push_enabled : true;
+
+  if (user && user.fcm_token && pushEnabled) {
+    await sendNotification(user.fcm_token, title, message);
+  }
+
+  return notif;
+};
+
+const getPreferences = async (userId) => {
+  const { data, error } = await supabaseAdmin
+    .from('notification_settings')
+    .select('push_enabled, mealplan_enabled, reminder_enabled, article_enabled')
+    .eq('user_id', userId)
+    .limit(1)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      return {
+        push_enabled: true,
+        mealplan_enabled: true,
+        reminder_enabled: true,
+        article_enabled: true
+      };
+    }
+    throw { statusCode: 400, message: error.message };
+  }
+  return {
+    push_enabled: data.push_enabled ?? true,
+    mealplan_enabled: data.mealplan_enabled ?? true,
+    reminder_enabled: data.reminder_enabled ?? true,
+    article_enabled: data.article_enabled ?? true
+  };
+};
+
+const updatePreferences = async (userId, body) => {
+  const { push_enabled, mealplan_enabled, reminder_enabled, article_enabled } = body;
+  const updates = {};
+  if (push_enabled !== undefined) updates.push_enabled = push_enabled;
+  if (mealplan_enabled !== undefined) updates.mealplan_enabled = mealplan_enabled;
+  if (reminder_enabled !== undefined) updates.reminder_enabled = reminder_enabled;
+  if (article_enabled !== undefined) updates.article_enabled = article_enabled;
+
+  const { data, error } = await supabaseAdmin
+    .from('notification_settings')
+    .update(updates)
+    .eq('user_id', userId)
+    .select('push_enabled, mealplan_enabled, reminder_enabled, article_enabled');
+
+  if (error) throw { statusCode: 400, message: error.message };
+
+  if (!data || data.length === 0) {
+    // Populate defaults first
+    const settingsSrv = require('./notification.settings.service');
+    await settingsSrv.getSettings(userId);
+
+    const { data: retryData, error: retryError } = await supabaseAdmin
+      .from('notification_settings')
+      .update(updates)
+      .eq('user_id', userId)
+      .select('push_enabled, mealplan_enabled, reminder_enabled, article_enabled');
+
+    if (retryError) throw { statusCode: 400, message: retryError.message };
+    return {
+      push_enabled: retryData[0].push_enabled ?? true,
+      mealplan_enabled: retryData[0].mealplan_enabled ?? true,
+      reminder_enabled: retryData[0].reminder_enabled ?? true,
+      article_enabled: retryData[0].article_enabled ?? true
+    };
+  }
+
+  return {
+    push_enabled: data[0].push_enabled ?? true,
+    mealplan_enabled: data[0].mealplan_enabled ?? true,
+    reminder_enabled: data[0].reminder_enabled ?? true,
+    article_enabled: data[0].article_enabled ?? true
+  };
+};
+
+module.exports = {
+  sendNotification,
+  saveNotification,
+  sendMealReminder,
+  saveFcmToken,
+  getNotifications,
+  markAsRead,
+  markAllAsRead,
+  createNotification,
+  getPreferences,
+  updatePreferences
+};
