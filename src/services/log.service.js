@@ -186,4 +186,101 @@ const updateWater = async (userId, date, total_water_ml) => {
   return data;
 };
 
-module.exports = { getAllLogs, getLogByDate, addEntry, addCustomEntry, deleteEntry, updateWater };
+const consumeRecipe = async (userId, date, body) => {
+  const { recipe_id, meal_time, portion_multiplier, source } = body;
+
+  if (!recipe_id) {
+    throw { statusCode: 400, message: 'recipe_id wajib diisi.' };
+  }
+  if (!meal_time) {
+    throw { statusCode: 400, message: 'meal_time wajib diisi.' };
+  }
+  validateMealTime(meal_time);
+
+  const multiplier = toNumber(portion_multiplier, 1.0);
+  if (multiplier <= 0) {
+    throw { statusCode: 400, message: 'portion_multiplier harus lebih besar dari 0.' };
+  }
+
+  const VALID_SOURCES = ['manual', 'barcode', 'recipe', 'meal_plan'];
+  const resolvedSource = source || 'recipe';
+  if (!VALID_SOURCES.includes(resolvedSource)) {
+    throw { statusCode: 400, message: 'source tidak valid.' };
+  }
+
+  // Fetch recipe with its ingredients
+  const { data: recipe, error: recipeError } = await supabaseAdmin
+    .from('recipes')
+    .select('*, bahan_resep(*, food_products(*))')
+    .eq('recipe_id', recipe_id)
+    .single();
+
+  if (recipeError || !recipe) {
+    throw { statusCode: 404, message: 'Resep tidak ditemukan.' };
+  }
+
+  const log = await getOrCreateDailyLog(userId, date);
+
+  const hasIngredients = recipe.bahan_resep && recipe.bahan_resep.length > 0;
+  let entryPayloads = [];
+
+  if (hasIngredients) {
+    entryPayloads = recipe.bahan_resep.map(item => {
+      const p = item.food_products;
+      if (!p || !p.serving_size_g || p.serving_size_g <= 0) {
+        throw { statusCode: 400, message: `Bahan resep dengan produk ID ${item.product_id} memiliki data produk yang tidak lengkap.` };
+      }
+      const portionVal = round(item.quantity * multiplier);
+      const ratio = portionVal / p.serving_size_g;
+      return {
+        log_id: log.log_id,
+        product_id: item.product_id,
+        meal_time,
+        portion: portionVal,
+        consumed_calories: round(p.calories_kcal * ratio),
+        consumed_sugar: round(p.sugar_g * ratio),
+        consumed_carbs: round(p.carbohydrate_g * ratio),
+        consumed_protein: round(p.protein_g * ratio),
+        consumed_fat: round(p.fat_g * ratio),
+        recipe_id,
+        source: resolvedSource
+      };
+    });
+  } else {
+    const portionVal = multiplier;
+    entryPayloads = [{
+      log_id: log.log_id,
+      product_id: null,
+      custom_name: recipe.recipe_name,
+      meal_time,
+      portion: portionVal,
+      consumed_calories: round(toNumber(recipe.calories_kcal) * multiplier),
+      consumed_sugar: round(toNumber(recipe.sugar_g) * multiplier),
+      consumed_carbs: round(toNumber(recipe.carbohydrate_g) * multiplier),
+      consumed_protein: round(toNumber(recipe.protein_g) * multiplier),
+      consumed_fat: round(toNumber(recipe.fat_g) * multiplier),
+      recipe_id,
+      source: resolvedSource
+    }];
+  }
+
+  const { data: insertedEntries, error: insertError } = await supabaseAdmin
+    .from('log_entries')
+    .insert(entryPayloads)
+    .select();
+
+  if (insertError) {
+    throw { statusCode: 400, message: insertError.message };
+  }
+
+  await recalcDailyLog(log.log_id);
+
+  const representativeEntry = insertedEntries[0];
+  return {
+    entry_id: representativeEntry.entry_id,
+    recipe_id: recipe_id,
+    meal_time: meal_time
+  };
+};
+
+module.exports = { getAllLogs, getLogByDate, addEntry, addCustomEntry, deleteEntry, updateWater, consumeRecipe };

@@ -42,4 +42,15 @@ const updateWater = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { getAllLogs, getLogByDate, addEntry, addCustomEntry, deleteEntry, updateWater };
+const consumeRecipe = async (req, res, next) => {
+  try {
+    const data = await srv.consumeRecipe(req.user.id, req.params.date, req.body);
+    return res.status(201).json({
+      success: true,
+      message: 'Recipe consumption recorded.',
+      data
+    });
+  } catch (err) { next(err); }
+};
+
+module.exports = { getAllLogs, getLogByDate, addEntry, addCustomEntry, deleteEntry, updateWater, consumeRecipe };
