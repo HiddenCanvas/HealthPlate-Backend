@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS "log_entries" (
     "entry_id"          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "log_id"            UUID NOT NULL REFERENCES "daily_logs"("log_id") ON DELETE CASCADE,
     "product_id"        UUID REFERENCES "food_products"("product_id") ON DELETE SET NULL,
+    "custom_name"       VARCHAR(255),
     "meal_time"         VARCHAR(20) NOT NULL CHECK (meal_time IN ('Breakfast', 'Lunch', 'Dinner', 'Snack')),
     "portion"           DECIMAL(8, 2) NOT NULL CHECK (portion > 0),
     "consumed_calories" DECIMAL(8, 2) NOT NULL DEFAULT 0,
@@ -95,6 +96,7 @@ CREATE TABLE IF NOT EXISTS "log_entries" (
     "consumed_carbs"    DECIMAL(8, 2) NOT NULL DEFAULT 0,
     "consumed_protein"  DECIMAL(8, 2) NOT NULL DEFAULT 0,
     "consumed_fat"      DECIMAL(8, 2) NOT NULL DEFAULT 0,
+    "image_url"         TEXT,
     "created_at"        TIMESTAMPTZ DEFAULT now()
 );
 

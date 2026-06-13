@@ -8,5 +8,6 @@ router.use(authMiddleware);
 
 router.post('/avatar', upload.single('image'), ctrl.uploadAvatar);
 router.post('/recipe/:id', upload.single('image'), ctrl.uploadRecipeImage);
+router.post('/consumption-photo', upload.single('image'), ctrl.uploadConsumptionPhoto);
 
 module.exports = router;

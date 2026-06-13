@@ -57,4 +57,28 @@ const updateRecipeImage = async (userId, recipeId, file) => {
   return data;
 };
 
-module.exports = { uploadImage, updateAvatar, updateRecipeImage };
+const updateConsumptionPhoto = async (userId, entryId, file) => {
+  if (!entryId) throw { statusCode: 400, message: 'entry_id wajib diisi.' };
+
+  const { data: entry, error: entryError } = await supabaseAdmin
+    .from('log_entries')
+    .select('entry_id, daily_logs!inner(user_id)')
+    .eq('entry_id', entryId)
+    .eq('daily_logs.user_id', userId)
+    .single();
+  if (entryError || !entry) throw { statusCode: 404, message: 'Entry log tidak ditemukan.' };
+
+  const url = await uploadImage(file, 'consumption');
+
+  const { data, error } = await supabaseAdmin
+    .from('log_entries')
+    .update({ image_url: url })
+    .eq('entry_id', entryId)
+    .select()
+    .single();
+
+  if (error) throw { statusCode: 400, message: error.message };
+  return data;
+};
+
+module.exports = { uploadImage, updateAvatar, updateRecipeImage, updateConsumptionPhoto };

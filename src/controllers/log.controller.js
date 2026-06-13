@@ -21,6 +21,13 @@ const addEntry = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const addCustomEntry = async (req, res, next) => {
+  try {
+    const data = await srv.addCustomEntry(req.user.id, req.params.date, req.body);
+    return res.status(201).json({ success: true, message: 'Entry custom berhasil ditambahkan.', data });
+  } catch (err) { next(err); }
+};
+
 const deleteEntry = async (req, res, next) => {
   try {
     await srv.deleteEntry(req.user.id, req.params.date, req.params.entryId);
@@ -35,4 +42,4 @@ const updateWater = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { getAllLogs, getLogByDate, addEntry, deleteEntry, updateWater };
+module.exports = { getAllLogs, getLogByDate, addEntry, addCustomEntry, deleteEntry, updateWater };

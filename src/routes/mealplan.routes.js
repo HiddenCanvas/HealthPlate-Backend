@@ -7,6 +7,7 @@ router.use(authMiddleware);
 
 router.get('/',           ctrl.getAllMealPlans);
 router.post('/',          ctrl.createMealPlan);
+router.post('/apply-package', ctrl.applyPackage);
 
 // GET meal plan berdasarkan tanggal — harus SEBELUM /:id
 router.get('/date/:date', ctrl.getMealPlanByDate);

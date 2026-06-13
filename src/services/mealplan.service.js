@@ -217,7 +217,88 @@ const deleteItemsByDate = async (userId, planId, date) => {
   if (error) throw { statusCode: 400, message: error.message };
 };
 
+const addDays = (dateStr, days) => {
+  const date = new Date(`${dateStr}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
+
+const applyPackage = async (userId, body) => {
+  const {
+    package_id,
+    plan_id,
+    plan_name,
+    start_date,
+    meal_time = 'Lunch',
+    portion = 1,
+    spread_days = false
+  } = body;
+
+  if (!package_id) throw { statusCode: 400, message: 'package_id wajib diisi.' };
+  if (!start_date) throw { statusCode: 400, message: 'start_date wajib diisi.' };
+  if (isNaN(new Date(start_date).getTime())) {
+    throw { statusCode: 400, message: 'Format start_date tidak valid. Gunakan YYYY-MM-DD.' };
+  }
+
+  let targetPlanId = plan_id;
+  if (targetPlanId) {
+    const { data: plan, error: planError } = await supabaseAdmin
+      .from('meal_plans')
+      .select('plan_id')
+      .eq('plan_id', targetPlanId)
+      .eq('user_id', userId)
+      .single();
+    if (planError || !plan) throw { statusCode: 404, message: 'Meal plan tidak ditemukan.' };
+  } else {
+    const { data: newPlan, error: createError } = await supabaseAdmin
+      .from('meal_plans')
+      .insert({
+        user_id: userId,
+        plan_name: plan_name || 'Meal Plan dari Paket',
+        status: 'Draft',
+        activated_at: start_date
+      })
+      .select()
+      .single();
+    if (createError) throw { statusCode: 400, message: createError.message };
+    targetPlanId = newPlan.plan_id;
+  }
+
+  const { data: recipes, error: recipeError } = await supabaseAdmin
+    .from('recipes')
+    .select('recipe_id')
+    .eq('package_id', package_id)
+    .order('created_at', { ascending: true });
+  if (recipeError) throw { statusCode: 400, message: recipeError.message };
+  if (!recipes || recipes.length === 0) throw { statusCode: 404, message: 'Paket belum memiliki resep.' };
+
+  const items = recipes.map((recipe, index) => {
+    const mealDate = spread_days ? addDays(start_date, index) : start_date;
+    return {
+      plan_id: targetPlanId,
+      recipe_id: recipe.recipe_id,
+      meal_date: mealDate,
+      meal_day: getDayName(mealDate),
+      meal_time,
+      portion
+    };
+  });
+
+  const { data, error } = await supabaseAdmin
+    .from('meal_plan_items')
+    .insert(items)
+    .select('*, recipes(recipe_id, recipe_name)');
+  if (error) throw { statusCode: 400, message: error.message };
+
+  return {
+    plan_id: targetPlanId,
+    package_id,
+    inserted_count: data.length,
+    items: data
+  };
+};
+
 module.exports = {
   getAllMealPlans, createMealPlan, getMealPlanById, getMealPlanByDate,
-  updateMealPlan, deleteMealPlan, addItem, deleteItem, deleteItemsByDate
+  updateMealPlan, deleteMealPlan, addItem, deleteItem, deleteItemsByDate, applyPackage
 };

@@ -66,7 +66,14 @@ const deleteItemsByDate = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const applyPackage = async (req, res, next) => {
+  try {
+    const data = await srv.applyPackage(req.user.id, req.body);
+    return res.status(201).json({ success: true, message: 'Paket makan berhasil diterapkan ke meal plan.', data });
+  } catch (err) { next(err); }
+};
+
 module.exports = {
   getAllMealPlans, createMealPlan, getMealPlanById, getMealPlanByDate,
-  updateMealPlan, deleteMealPlan, addItem, deleteItem, deleteItemsByDate
+  updateMealPlan, deleteMealPlan, addItem, deleteItem, deleteItemsByDate, applyPackage
 };

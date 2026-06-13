@@ -83,6 +83,36 @@ Response list foods:
   "limit": 10
 }
 
+ADMIN MEAL CATEGORY CRUD
+GET    /admin/meal-categories
+GET    /admin/meal-categories/:id
+POST   /admin/meal-categories
+PUT    /admin/meal-categories/:id
+DELETE /admin/meal-categories/:id
+
+Body POST/PUT:
+{
+  "category_name": "Diet Diabetes"
+}
+
+ADMIN MEAL PACKAGE CRUD
+GET    /admin/meal-packages
+GET    /admin/meal-packages/:id
+POST   /admin/meal-packages
+PUT    /admin/meal-packages/:id
+DELETE /admin/meal-packages/:id
+
+Body POST/PUT:
+{
+  "category_id": "uuid-kategori",
+  "package_name": "Paket 7 Hari Rendah Gula",
+  "description": "Paket makan rendah gula untuk satu minggu"
+}
+
+ADMIN MONITORING
+GET    /admin/users?page=1&limit=20&role=&q=
+GET    /admin/logs?page=1&limit=20&user_id=&date=&from_date=&to_date=
+
 RECIPE ENDPOINTS
 GET    /recipe
 GET    /recipe/search?q=
@@ -128,6 +158,7 @@ Recipe response menyediakan alias admin:
 MEALPLAN ENDPOINTS
 GET    /mealplan
 POST   /mealplan
+POST   /mealplan/apply-package
 GET    /mealplan/:id
 PUT    /mealplan/:id
 DELETE /mealplan/:id
@@ -159,3 +190,35 @@ Mealplan response menyediakan alias admin:
   "created_at": "timestamp",
   "updated_at": "timestamp"
 }
+
+Body POST /mealplan/apply-package:
+{
+  "package_id": "uuid-paket",
+  "plan_id": "uuid-plan-opsional",
+  "plan_name": "Plan dari Paket",
+  "start_date": "2026-06-13",
+  "meal_time": "Lunch",
+  "portion": 1,
+  "spread_days": true
+}
+
+LOG CUSTOM & UPLOAD KONSUMSI
+POST   /log/:date/entries/custom
+POST   /log/:date/entries
+POST   /upload/consumption-photo
+
+Body POST /log/:date/entries/custom:
+{
+  "custom_name": "Bakso homemade",
+  "meal_time": "Dinner",
+  "portion": 250,
+  "consumed_calories": 320,
+  "consumed_sugar": 4,
+  "consumed_carbs": 35,
+  "consumed_protein": 18,
+  "consumed_fat": 12
+}
+
+Body multipart POST /upload/consumption-photo:
+image: file gambar
+entry_id: uuid-entry-log

@@ -18,4 +18,15 @@ const uploadRecipeImage = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { uploadAvatar, uploadRecipeImage };
+const uploadConsumptionPhoto = async (req, res, next) => {
+  try {
+    if (!req.file)
+      return res.status(400).json({ success: false, message: 'File gambar wajib diupload.' });
+
+    const entryId = req.body.entry_id || req.query.entry_id;
+    const data = await srv.updateConsumptionPhoto(req.user.id, entryId, req.file);
+    return res.status(200).json({ success: true, message: 'Foto konsumsi berhasil diupload.', data });
+  } catch (err) { next(err); }
+};
+
+module.exports = { uploadAvatar, uploadRecipeImage, uploadConsumptionPhoto };

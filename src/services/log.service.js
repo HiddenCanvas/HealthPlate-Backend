@@ -1,5 +1,21 @@
 const { supabaseAdmin } = require('../config/supabase');
 
+const MEAL_TIMES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
+
+const toNumber = (value, fallback = 0) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+};
+
+const round = (value) => +Number(value || 0).toFixed(2);
+
+const validateMealTime = (mealTime) => {
+  if (!MEAL_TIMES.includes(mealTime)) {
+    throw { statusCode: 400, message: 'meal_time harus salah satu dari Breakfast, Lunch, Dinner, atau Snack.' };
+  }
+};
+
 const getOrCreateDailyLog = async (userId, date) => {
   let { data } = await supabaseAdmin
     .from('daily_logs')
@@ -61,8 +77,11 @@ const getLogByDate = async (userId, date) => {
 
 const addEntry = async (userId, date, body) => {
   const { product_id, meal_time, portion } = body;
-  if (!product_id || !meal_time || !portion)
-    throw { statusCode: 400, message: 'product_id, meal_time, dan portion wajib diisi.' };
+  if (!meal_time || !portion)
+    throw { statusCode: 400, message: 'meal_time dan portion wajib diisi.' };
+  validateMealTime(meal_time);
+
+  if (!product_id) return addCustomEntry(userId, date, body);
 
   const { data: product, error: productError } = await supabaseAdmin
     .from('food_products')
@@ -96,6 +115,49 @@ const addEntry = async (userId, date, body) => {
   return data;
 };
 
+const addCustomEntry = async (userId, date, body) => {
+  const {
+    meal_time,
+    portion,
+    custom_name,
+    name,
+    consumed_calories,
+    consumed_sugar,
+    consumed_carbs,
+    consumed_protein,
+    consumed_fat
+  } = body;
+
+  const resolvedName = String(custom_name || name || '').trim();
+  if (!resolvedName) throw { statusCode: 400, message: 'custom_name wajib diisi untuk log makanan custom.' };
+  if (!meal_time || !portion) throw { statusCode: 400, message: 'meal_time dan portion wajib diisi.' };
+  validateMealTime(meal_time);
+
+  const log = await getOrCreateDailyLog(userId, date);
+  const entry = {
+    log_id: log.log_id,
+    product_id: null,
+    custom_name: resolvedName,
+    meal_time,
+    portion: toNumber(portion),
+    consumed_calories: round(toNumber(consumed_calories)),
+    consumed_sugar: round(toNumber(consumed_sugar)),
+    consumed_carbs: round(toNumber(consumed_carbs)),
+    consumed_protein: round(toNumber(consumed_protein)),
+    consumed_fat: round(toNumber(consumed_fat))
+  };
+
+  const { data, error } = await supabaseAdmin
+    .from('log_entries')
+    .insert(entry)
+    .select()
+    .single();
+  if (error) throw { statusCode: 400, message: error.message };
+
+  await recalcDailyLog(log.log_id);
+  return data;
+};
+
 const deleteEntry = async (userId, date, entryId) => {
   const log = await getOrCreateDailyLog(userId, date);
 
@@ -124,4 +186,4 @@ const updateWater = async (userId, date, total_water_ml) => {
   return data;
 };
 
-module.exports = { getAllLogs, getLogByDate, addEntry, deleteEntry, updateWater };
+module.exports = { getAllLogs, getLogByDate, addEntry, addCustomEntry, deleteEntry, updateWater };
