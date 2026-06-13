@@ -38,11 +38,12 @@ const updateRecipeImage = async (userId, recipeId, file) => {
   // Pastikan resep milik user
   const { data: recipe, error: recipeError } = await supabaseAdmin
     .from('recipes')
-    .select('recipe_id')
+    .select('recipe_id, user_id')
     .eq('recipe_id', recipeId)
-    .eq('user_id', userId)
     .single();
-  if (recipeError || !recipe) throw { statusCode: 404, message: 'Resep tidak ditemukan.' };
+  if (recipeError || !recipe || recipe.user_id !== userId) {
+    throw { statusCode: 403, message: 'Resep tidak ditemukan atau bukan milik Anda.' };
+  }
 
   const url = await uploadImage(file, 'recipes');
 

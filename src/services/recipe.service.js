@@ -175,7 +175,7 @@ const updateRecipe = async (userId, recipeId, body) => {
     .eq('recipe_id', recipeId)
     .single();
 
-  if (checkError || !recipe || (recipe.user_id !== null && recipe.user_id !== userId))
+  if (checkError || !recipe || recipe.user_id !== userId)
     throw { statusCode: 403, message: 'Resep tidak ditemukan atau bukan milik Anda.' };
 
   const allowed = ['recipe_name', 'description', 'instructions', 'image_url', 'cooking_time', 'difficulty', 'servings', 'package_id'];
@@ -216,7 +216,7 @@ const deleteRecipe = async (userId, recipeId) => {
     .eq('recipe_id', recipeId)
     .single();
 
-  if (checkError || !recipe || (recipe.user_id !== null && recipe.user_id !== userId))
+  if (checkError || !recipe || recipe.user_id !== userId)
     throw { statusCode: 403, message: 'Resep tidak ditemukan atau bukan milik Anda.' };
 
   const { error } = await supabaseAdmin
@@ -240,7 +240,7 @@ const addIngredient = async (userId, recipeId, body) => {
     .eq('recipe_id', recipeId)
     .single();
     
-  if (recipeError || !recipe || (recipe.user_id !== null && recipe.user_id !== userId))
+  if (recipeError || !recipe || recipe.user_id !== userId)
     throw { statusCode: 403, message: 'Resep tidak ditemukan atau bukan milik Anda.' };
 
   const { data, error } = await supabaseAdmin
@@ -264,7 +264,7 @@ const deleteIngredient = async (userId, recipeId, bahanId) => {
     .eq('recipe_id', recipeId)
     .single();
     
-  if (recipeError || !recipe || (recipe.user_id !== null && recipe.user_id !== userId))
+  if (recipeError || !recipe || recipe.user_id !== userId)
     throw { statusCode: 403, message: 'Resep tidak ditemukan atau bukan milik Anda.' };
 
   const { error } = await supabaseAdmin
@@ -293,7 +293,7 @@ const addStep = async (userId, recipeId, body) => {
     .eq('recipe_id', recipeId)
     .single();
     
-  if (recipeError || !recipe || (recipe.user_id !== null && recipe.user_id !== userId))
+  if (recipeError || !recipe || recipe.user_id !== userId)
     throw { statusCode: 403, message: 'Resep tidak ditemukan atau bukan milik Anda.' };
 
   const { data, error } = await supabaseAdmin
@@ -313,7 +313,7 @@ const deleteStep = async (userId, recipeId, stepId) => {
     .eq('recipe_id', recipeId)
     .single();
     
-  if (recipeError || !recipe || (recipe.user_id !== null && recipe.user_id !== userId))
+  if (recipeError || !recipe || recipe.user_id !== userId)
     throw { statusCode: 403, message: 'Resep tidak ditemukan atau bukan milik Anda.' };
 
   const { error } = await supabaseAdmin
