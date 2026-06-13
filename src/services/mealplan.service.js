@@ -240,6 +240,44 @@ const applyPackage = async (userId, body) => {
     throw { statusCode: 400, message: 'Format start_date tidak valid. Gunakan YYYY-MM-DD.' };
   }
 
+  // Step 5 — Generate Meal Items (Fetch from junction first as source of truth)
+  const { data: packageItems, error: pkgItemsError } = await supabaseAdmin
+    .from('meal_package_items')
+    .select('recipe_id, meal_time')
+    .eq('package_id', package_id);
+  if (pkgItemsError) throw { statusCode: 400, message: pkgItemsError.message };
+  if (!packageItems || packageItems.length === 0) throw { statusCode: 404, message: 'Paket belum memiliki resep.' };
+
+  // Step 1 — Determine Plan Duration
+  const expiresDate = spread_days ? addDays(start_date, packageItems.length - 1) : start_date;
+
+  // Step 2 — Find Overlapping Active Plans (User-isolated)
+  const { data: activePlans, error: activePlansError } = await supabaseAdmin
+    .from('meal_plans')
+    .select('plan_id, plan_name, activated_at, expires_at')
+    .eq('user_id', userId)
+    .eq('status', 'Active');
+  if (activePlansError) throw { statusCode: 400, message: activePlansError.message };
+
+  // JS Overlap Detection
+  const targetStart = new Date(start_date);
+  const overlappingPlans = (activePlans || []).filter(plan => {
+    const activatedAt = new Date(plan.activated_at);
+    const expiresAt = plan.expires_at ? new Date(plan.expires_at) : activatedAt; // legacy fallback
+    return activatedAt <= targetStart && expiresAt >= targetStart;
+  });
+
+  // Step 3 — Replace Same-Date Plan Only
+  if (overlappingPlans.length > 0) {
+    const overlappingIds = overlappingPlans.map(p => p.plan_id);
+    const { error: deactivateError } = await supabaseAdmin
+      .from('meal_plans')
+      .update({ status: 'Inactive' })
+      .in('plan_id', overlappingIds);
+    if (deactivateError) throw { statusCode: 400, message: deactivateError.message };
+  }
+
+  // Step 4 — Create/Update Plan
   let targetPlanId = plan_id;
   if (targetPlanId) {
     const { data: plan, error: planError } = await supabaseAdmin
@@ -249,27 +287,30 @@ const applyPackage = async (userId, body) => {
       .eq('user_id', userId)
       .single();
     if (planError || !plan) throw { statusCode: 404, message: 'Meal plan tidak ditemukan.' };
+
+    const { error: updateError } = await supabaseAdmin
+      .from('meal_plans')
+      .update({
+        status: 'Active',
+        expires_at: expiresDate
+      })
+      .eq('plan_id', targetPlanId);
+    if (updateError) throw { statusCode: 400, message: updateError.message };
   } else {
     const { data: newPlan, error: createError } = await supabaseAdmin
       .from('meal_plans')
       .insert({
         user_id: userId,
         plan_name: plan_name || 'Meal Plan dari Paket',
-        status: 'Draft',
-        activated_at: start_date
+        status: 'Active',
+        activated_at: start_date,
+        expires_at: expiresDate
       })
       .select()
       .single();
     if (createError) throw { statusCode: 400, message: createError.message };
     targetPlanId = newPlan.plan_id;
   }
-
-  const { data: packageItems, error: pkgItemsError } = await supabaseAdmin
-    .from('meal_package_items')
-    .select('recipe_id, meal_time')
-    .eq('package_id', package_id);
-  if (pkgItemsError) throw { statusCode: 400, message: pkgItemsError.message };
-  if (!packageItems || packageItems.length === 0) throw { statusCode: 404, message: 'Paket belum memiliki resep.' };
 
   const items = packageItems.map((item, index) => {
     const mealDate = spread_days ? addDays(start_date, index) : start_date;
