@@ -264,22 +264,21 @@ const applyPackage = async (userId, body) => {
     targetPlanId = newPlan.plan_id;
   }
 
-  const { data: recipes, error: recipeError } = await supabaseAdmin
-    .from('recipes')
-    .select('recipe_id')
-    .eq('package_id', package_id)
-    .order('created_at', { ascending: true });
-  if (recipeError) throw { statusCode: 400, message: recipeError.message };
-  if (!recipes || recipes.length === 0) throw { statusCode: 404, message: 'Paket belum memiliki resep.' };
+  const { data: packageItems, error: pkgItemsError } = await supabaseAdmin
+    .from('meal_package_items')
+    .select('recipe_id, meal_time')
+    .eq('package_id', package_id);
+  if (pkgItemsError) throw { statusCode: 400, message: pkgItemsError.message };
+  if (!packageItems || packageItems.length === 0) throw { statusCode: 404, message: 'Paket belum memiliki resep.' };
 
-  const items = recipes.map((recipe, index) => {
+  const items = packageItems.map((item, index) => {
     const mealDate = spread_days ? addDays(start_date, index) : start_date;
     return {
       plan_id: targetPlanId,
-      recipe_id: recipe.recipe_id,
+      recipe_id: item.recipe_id,
       meal_date: mealDate,
       meal_day: getDayName(mealDate),
-      meal_time,
+      meal_time: item.meal_time,
       portion
     };
   });

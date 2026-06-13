@@ -64,20 +64,46 @@ const deleteMealCategory = async (categoryId) => {
 const getAllMealPackages = async () => {
   const { data, error } = await supabaseAdmin
     .from('meal_packages')
-    .select('*, meal_categories(category_id, category_name), recipes(recipe_id, recipe_name, calories_kcal, protein_g, carbohydrate_g, fat_g, sugar_g)')
+    .select('*, meal_categories(category_id, category_name), meal_package_items(meal_time, recipes(recipe_name))')
     .order('package_name', { ascending: true });
   if (error) throw { statusCode: 400, message: error.message };
-  return data || [];
+
+  const order = { 'Breakfast': 1, 'Lunch': 2, 'Dinner': 3, 'Snack': 4 };
+
+  return (data || []).map(pkg => {
+    const meals = (pkg.meal_package_items || []).map(item => ({
+      meal_time: item.meal_time,
+      recipe_name: item.recipes ? item.recipes.recipe_name : null
+    })).sort((a, b) => (order[a.meal_time] || 99) - (order[b.meal_time] || 99));
+
+    const { meal_package_items, ...rest } = pkg;
+    return {
+      ...rest,
+      meals
+    };
+  });
 };
 
 const getMealPackageById = async (packageId) => {
   const { data, error } = await supabaseAdmin
     .from('meal_packages')
-    .select('*, meal_categories(category_id, category_name), recipes(recipe_id, recipe_name, calories_kcal, protein_g, carbohydrate_g, fat_g, sugar_g)')
+    .select('*, meal_categories(category_id, category_name), meal_package_items(meal_time, recipes(recipe_name))')
     .eq('package_id', packageId)
     .single();
   if (error) throw { statusCode: 404, message: 'Paket makan tidak ditemukan.' };
-  return data;
+
+  const order = { 'Breakfast': 1, 'Lunch': 2, 'Dinner': 3, 'Snack': 4 };
+
+  const meals = (data.meal_package_items || []).map(item => ({
+    meal_time: item.meal_time,
+    recipe_name: item.recipes ? item.recipes.recipe_name : null
+  })).sort((a, b) => (order[a.meal_time] || 99) - (order[b.meal_time] || 99));
+
+  const { meal_package_items, ...rest } = data;
+  return {
+    ...rest,
+    meals
+  };
 };
 
 const validateMealCategory = async (categoryId) => {

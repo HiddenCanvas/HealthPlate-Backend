@@ -75,10 +75,52 @@ const mapRecipe = (recipe) => {
 
 const getCategories = async () => {
   const { data, error } = await supabaseAdmin
-    .from('meal_categories')
-    .select('*, meal_packages(*)');
+    .from('focus_categories')
+    .select('*, meal_packages(*, meal_package_items(*, recipes(recipe_id, recipe_name, image_url)))');
+
   if (error) throw { statusCode: 400, message: error.message };
-  return data;
+
+  const order = { 'Breakfast': 1, 'Lunch': 2, 'Dinner': 3, 'Snack': 4 };
+
+  return (data || []).map(category => {
+    const packages = (category.meal_packages || []).map(pkg => {
+      const preview_meals = {};
+      const meal_slots = [];
+
+      const items = pkg.meal_package_items || [];
+      const sortedItems = [...items].sort((a, b) => 
+        (order[a.meal_time] || 99) - (order[b.meal_time] || 99)
+      );
+
+      sortedItems.forEach(item => {
+        if (item.recipes) {
+          const recipeData = {
+            recipe_id: item.recipes.recipe_id,
+            recipe_name: item.recipes.recipe_name,
+            image_url: item.recipes.image_url
+          };
+          preview_meals[item.meal_time.toLowerCase()] = recipeData;
+          preview_meals[item.meal_time] = recipeData;
+
+          meal_slots.push({
+            meal_time: item.meal_time,
+            recipe: recipeData
+          });
+        }
+      });
+
+      return {
+        ...pkg,
+        preview_meals,
+        meal_slots
+      };
+    });
+
+    return {
+      ...category,
+      meal_packages: packages
+    };
+  });
 };
 
 
