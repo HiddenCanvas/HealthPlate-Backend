@@ -14,6 +14,6 @@ router.use('/upload', require('./upload.routes'));
 router.use('/notification', require('./notification.routes'));
 router.use('/article', require('./article.routes'));   // ← BARU
 router.use('/tips', require('./tips.routes'));         // ← BARU
-
+router.use('/ai', require('./ai.routes'));
 
 module.exports = router;

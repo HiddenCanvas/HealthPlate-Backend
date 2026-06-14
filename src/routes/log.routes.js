@@ -10,6 +10,7 @@ router.get('/:date', ctrl.getLogByDate);
 router.post('/:date/entries/custom', ctrl.addCustomEntry);
 router.post('/:date/entries', ctrl.addEntry);
 router.post('/:date/consume-recipe', ctrl.consumeRecipe);
+router.post('/:date/ai-food', ctrl.addAiFoodEntry);
 router.delete('/:date/entries/:entryId', ctrl.deleteEntry);
 router.put('/:date/water', ctrl.updateWater);
 

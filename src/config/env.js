@@ -22,5 +22,6 @@ module.exports = {
   SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY,
   SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
   PORT: parseInt(process.env.PORT, 10) || 3000,
-  NODE_ENV: process.env.NODE_ENV || 'development'
+  NODE_ENV: process.env.NODE_ENV || 'development',
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY
 };
