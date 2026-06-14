@@ -283,4 +283,76 @@ const consumeRecipe = async (userId, date, body) => {
   };
 };
 
-module.exports = { getAllLogs, getLogByDate, addEntry, addCustomEntry, deleteEntry, updateWater, consumeRecipe };
+const addAiFoodEntry = async (userId, date, body) => {
+  const {
+    food_name,
+    quantity,
+    unit,
+    estimated_serving_g,
+    calories_kcal,
+    protein_g,
+    carbohydrate_g,
+    fat_g,
+    sugar_g,
+    confidence,
+    reasoning,
+    meal_time
+  } = body;
+
+  if (!food_name || typeof food_name !== 'string' || !food_name.trim()) {
+    throw { statusCode: 400, message: 'food_name wajib diisi.' };
+  }
+  if (!meal_time) {
+    throw { statusCode: 400, message: 'meal_time wajib diisi.' };
+  }
+  validateMealTime(meal_time);
+
+  const log = await getOrCreateDailyLog(userId, date);
+
+  const confidenceVal = confidence !== undefined && confidence !== null
+    ? Math.min(100, Math.max(0, Math.round(Number(confidence) || 0)))
+    : null;
+
+  const entry = {
+    log_id: log.log_id,
+    product_id: null,
+    recipe_id: null,
+    custom_name: food_name.trim(),
+    meal_time,
+    portion: toNumber(quantity, 1.0),
+    consumed_calories: round(toNumber(calories_kcal)),
+    consumed_sugar: round(toNumber(sugar_g)),
+    consumed_carbs: round(toNumber(carbohydrate_g)),
+    consumed_protein: round(toNumber(protein_g)),
+    consumed_fat: round(toNumber(fat_g)),
+    source: 'ai_prediction',
+    ai_confidence: confidenceVal,
+    ai_reasoning: reasoning ? String(reasoning).trim() : null
+  };
+
+  const { data, error } = await supabaseAdmin
+    .from('log_entries')
+    .insert(entry)
+    .select()
+    .single();
+
+  if (error) throw { statusCode: 400, message: error.message };
+
+  await recalcDailyLog(log.log_id);
+
+  return {
+    entry_id: data.entry_id,
+    food_name: data.custom_name
+  };
+};
+
+module.exports = {
+  getAllLogs,
+  getLogByDate,
+  addEntry,
+  addCustomEntry,
+  deleteEntry,
+  updateWater,
+  consumeRecipe,
+  addAiFoodEntry
+};
