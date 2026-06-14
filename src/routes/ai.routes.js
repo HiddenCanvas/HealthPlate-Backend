@@ -3,14 +3,18 @@ const router = express.Router();
 const ctrl = require('../controllers/ai.controller');
 const authMiddleware = require('../middleware/auth');
 const multer = require('multer');
+const path = require('path');
 
 // Configure custom multer instance for AI endpoint with size limits and format checks
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB limit
   fileFilter: (req, file, cb) => {
-    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (allowedMimeTypes.includes(file.mimetype)) {
+    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    const allowedExtensions = ['.jpeg', '.jpg', '.png', '.webp'];
+    const fileExt = file.originalname ? path.extname(file.originalname).toLowerCase() : '';
+    
+    if (allowedMimeTypes.includes(file.mimetype) || allowedExtensions.includes(fileExt)) {
       cb(null, true);
     } else {
       cb(new Error('Format file tidak didukung. Hanya JPEG, PNG, dan WebP yang diperbolehkan.'));
@@ -24,7 +28,7 @@ router.use(authMiddleware);
 router.post(
   '/predict-food',
   (req, res, next) => {
-    upload.single('image')(req, res, (err) => {
+    upload.any()(req, res, (err) => {
       if (err) {
         if (err instanceof multer.MulterError) {
           if (err.code === 'LIMIT_FILE_SIZE') {
@@ -43,6 +47,12 @@ router.post(
           message: err.message || 'Gagal mengunggah gambar.'
         });
       }
+      
+      // Fallback req.file to the first uploaded file in req.files
+      if (req.files && req.files.length > 0) {
+        req.file = req.files[0];
+      }
+      
       next();
     });
   },
