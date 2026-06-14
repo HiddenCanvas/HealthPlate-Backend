@@ -64,6 +64,11 @@ const getAllLogs = async (userId) => {
   return data;
 };
 
+const serializeLogEntry = (entry) => {
+  if (!entry) return entry;
+  return entry;
+};
+
 const getLogByDate = async (userId, date) => {
   const { data, error } = await supabaseAdmin
     .from('daily_logs')
@@ -72,6 +77,11 @@ const getLogByDate = async (userId, date) => {
     .eq('log_date', date)
     .single();
   if (error) throw { statusCode: 404, message: 'Log tidak ditemukan.' };
+
+  if (data && data.log_entries) {
+    data.log_entries = data.log_entries.map(serializeLogEntry);
+  }
+
   return data;
 };
 
@@ -327,7 +337,9 @@ const addAiFoodEntry = async (userId, date, body) => {
     consumed_fat: round(toNumber(fat_g)),
     source: 'ai_prediction',
     ai_confidence: confidenceVal,
-    ai_reasoning: reasoning ? String(reasoning).trim() : null
+    ai_reasoning: reasoning ? String(reasoning).trim() : null,
+    image_url: body.image_url || null,
+    ai_image_path: body.ai_image_path || null
   };
 
   const { data, error } = await supabaseAdmin

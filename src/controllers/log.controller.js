@@ -55,7 +55,11 @@ const consumeRecipe = async (req, res, next) => {
 
 const addAiFoodEntry = async (req, res, next) => {
   try {
-    const { food_name, calories_kcal, protein_g, carbohydrate_g, fat_g, sugar_g, meal_time } = req.body;
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'image wajib diunggah.' });
+    }
+
+    const { food_name, meal_time } = req.body;
     
     if (!food_name || typeof food_name !== 'string' || !food_name.trim()) {
       return res.status(400).json({ success: false, message: 'food_name wajib diisi.' });
@@ -68,18 +72,48 @@ const addAiFoodEntry = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'meal_time harus salah satu dari Breakfast, Lunch, Dinner, atau Snack.' });
     }
     
-    const nutrients = { calories_kcal, protein_g, carbohydrate_g, fat_g, sugar_g };
+    const parsedCalories = req.body.calories_kcal !== undefined && req.body.calories_kcal !== '' ? Number(req.body.calories_kcal) : undefined;
+    const parsedProtein = req.body.protein_g !== undefined && req.body.protein_g !== '' ? Number(req.body.protein_g) : undefined;
+    const parsedCarbs = req.body.carbohydrate_g !== undefined && req.body.carbohydrate_g !== '' ? Number(req.body.carbohydrate_g) : undefined;
+    const parsedFat = req.body.fat_g !== undefined && req.body.fat_g !== '' ? Number(req.body.fat_g) : undefined;
+    const parsedSugar = req.body.sugar_g !== undefined && req.body.sugar_g !== '' ? Number(req.body.sugar_g) : undefined;
+    
+    const nutrients = { calories_kcal: parsedCalories, protein_g: parsedProtein, carbohydrate_g: parsedCarbs, fat_g: parsedFat, sugar_g: parsedSugar };
     for (const [key, value] of Object.entries(nutrients)) {
-      if (value !== undefined && value !== null && (typeof value !== 'number' || value < 0)) {
+      if (value !== undefined && value !== null && (typeof value !== 'number' || isNaN(value) || value < 0)) {
         return res.status(400).json({ success: false, message: `${key} harus berupa angka lebih besar atau sama dengan 0.` });
       }
     }
+
+    const uploadService = require('../services/upload.service');
+    const { publicUrl, storagePath } = await uploadService.uploadAiFoodImage(req.file, req.user.id, req.params.date);
     
-    const data = await srv.addAiFoodEntry(req.user.id, req.params.date, req.body);
+    const servicePayload = {
+      food_name: food_name.trim(),
+      quantity: req.body.quantity !== undefined && req.body.quantity !== '' ? Number(req.body.quantity) : undefined,
+      unit: req.body.unit,
+      estimated_serving_g: req.body.estimated_serving_g !== undefined && req.body.estimated_serving_g !== '' ? Number(req.body.estimated_serving_g) : undefined,
+      calories_kcal: parsedCalories,
+      protein_g: parsedProtein,
+      carbohydrate_g: parsedCarbs,
+      fat_g: parsedFat,
+      sugar_g: parsedSugar,
+      confidence: req.body.confidence !== undefined && req.body.confidence !== '' ? Number(req.body.confidence) : undefined,
+      reasoning: req.body.reasoning,
+      meal_time,
+      image_url: publicUrl,
+      ai_image_path: storagePath
+    };
+    
+    const data = await srv.addAiFoodEntry(req.user.id, req.params.date, servicePayload);
     return res.status(201).json({
       success: true,
       message: 'AI food entry created.',
-      data
+      data: {
+        entry_id: data.entry_id,
+        food_name: data.food_name,
+        image_url: publicUrl
+      }
     });
   } catch (err) { next(err); }
 };

@@ -31,6 +31,14 @@ const getUsers = async (query = {}) => {
   return { data: data || [], total: count || 0, page, limit };
 };
 
+const serializeLogEntry = (entry) => {
+  if (!entry) return entry;
+  return {
+    ...entry,
+    source: entry.source === 'ai_prediction' ? 'manual' : entry.source
+  };
+};
+
 const getLogs = async (query = {}) => {
   const { page, limit, from, to } = clampPagination(query);
 
@@ -47,7 +55,18 @@ const getLogs = async (query = {}) => {
 
   const { data, error, count } = await builder;
   if (error) throw { statusCode: 400, message: error.message };
-  return { data: data || [], total: count || 0, page, limit };
+
+  const serializedData = (data || []).map(log => {
+    if (log && log.log_entries) {
+      return {
+        ...log,
+        log_entries: log.log_entries.map(serializeLogEntry)
+      };
+    }
+    return log;
+  });
+
+  return { data: serializedData, total: count || 0, page, limit };
 };
 
 module.exports = { getUsers, getLogs };

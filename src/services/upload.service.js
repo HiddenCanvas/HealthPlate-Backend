@@ -82,4 +82,31 @@ const updateConsumptionPhoto = async (userId, entryId, file) => {
   return data;
 };
 
-module.exports = { uploadImage, updateAvatar, updateRecipeImage, updateConsumptionPhoto };
+const uploadAiFoodImage = async (file, userId, date) => {
+  if (!file) throw { statusCode: 400, message: 'File gambar wajib diupload.' };
+
+  const ext = file.originalname ? file.originalname.split('.').pop() : 'jpg';
+  const crypto = require('crypto');
+  const uuid = crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).substring(2));
+  const filename = `food-logs/${userId}/${date}/${uuid}.${ext}`;
+
+  const { data, error } = await supabaseAdmin.storage
+    .from('healthplate-images')
+    .upload(filename, file.buffer, {
+      contentType: file.mimetype,
+      upsert: false
+    });
+
+  if (error) throw { statusCode: 400, message: error.message };
+
+  const { data: urlData } = supabaseAdmin.storage
+    .from('healthplate-images')
+    .getPublicUrl(filename);
+
+  return {
+    publicUrl: urlData.publicUrl,
+    storagePath: filename
+  };
+};
+
+module.exports = { uploadImage, updateAvatar, updateRecipeImage, updateConsumptionPhoto, uploadAiFoodImage };

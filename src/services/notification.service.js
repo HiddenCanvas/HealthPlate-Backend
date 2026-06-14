@@ -58,9 +58,33 @@ const sendMealReminder = async (mealType) => {
 const saveFcmToken = async (userId, token) => {
   if (!token) throw { statusCode: 400, message: 'fcm_token wajib diisi.' };
 
+  const trimmedToken = token.trim();
+  if (trimmedToken.length < 10) {
+    throw { statusCode: 400, message: 'fcm_token tidak valid (panjang minimal 10 karakter).' };
+  }
+
+  // Hindari duplikasi token: Set fcm_token to null for any other user who has this token
+  await supabaseAdmin
+    .from('users')
+    .update({ fcm_token: null })
+    .eq('fcm_token', trimmedToken)
+    .not('user_id', 'eq', userId);
+
   const { data, error } = await supabaseAdmin
     .from('users')
-    .update({ fcm_token: token })
+    .update({ fcm_token: trimmedToken })
+    .eq('user_id', userId)
+    .select()
+    .single();
+
+  if (error) throw { statusCode: 400, message: error.message };
+  return data;
+};
+
+const deleteFcmToken = async (userId) => {
+  const { data, error } = await supabaseAdmin
+    .from('users')
+    .update({ fcm_token: null })
     .eq('user_id', userId)
     .select()
     .single();
@@ -224,6 +248,7 @@ module.exports = {
   saveNotification,
   sendMealReminder,
   saveFcmToken,
+  deleteFcmToken,
   getNotifications,
   markAsRead,
   markAllAsRead,
