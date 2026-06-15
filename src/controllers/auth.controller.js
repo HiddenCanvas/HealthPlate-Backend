@@ -6,7 +6,7 @@ const register = async (req, res, next) => {
     if (!name || !email || !password)
       return res.status(400).json({ success: false, message: 'Name, email, dan password wajib diisi.' });
     const data = await srv.register({ name, email, password });
-    return res.status(201).json({ success: true, message: 'Registrasi berhasil. Cek email untuk verifikasi.', data });
+    return res.status(201).json({ success: true, message: 'Registrasi berhasil.', data });
   } catch (err) { next(err); }
 };
 

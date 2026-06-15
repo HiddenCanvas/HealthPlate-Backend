@@ -3,8 +3,15 @@ const srv = require('../services/notification.service');
 const saveFcmToken = async (req, res, next) => {
   try {
     const { fcm_token } = req.body;
-    const data = await srv.saveFcmToken(req.user.id, fcm_token);
-    return res.status(200).json({ success: true, message: 'FCM token berhasil disimpan.', data });
+    await srv.saveFcmToken(req.user.id, fcm_token);
+    return res.status(200).json({ success: true });
+  } catch (err) { next(err); }
+};
+
+const deleteFcmToken = async (req, res, next) => {
+  try {
+    await srv.deleteFcmToken(req.user.id);
+    return res.status(200).json({ success: true });
   } catch (err) { next(err); }
 };
 
@@ -54,6 +61,7 @@ const createNotification = async (req, res, next) => {
 
 module.exports = {
   saveFcmToken,
+  deleteFcmToken,
   getNotifications,
   markAsRead,
   markAllAsRead,

@@ -1,5 +1,10 @@
 const { supabaseAdmin } = require('../config/supabase');
 
+const serializeLogEntry = (entry) => {
+  if (!entry) return entry;
+  return entry;
+};
+
 const getSummary = async (userId) => {
   const today = new Date().toISOString().split('T')[0];
 
@@ -44,12 +49,14 @@ const getSummary = async (userId) => {
     water_ml: +((consumed.water_ml / target.water_ml) * 100).toFixed(1),
   };
 
+  const entries = (log?.log_entries || []).map(serializeLogEntry);
+
   return {
     date: today,
     consumed,
     target,
     percentage,
-    entries: log?.log_entries || [],
+    entries,
   };
 };
 
@@ -60,12 +67,21 @@ const getHistory = async (userId, days = 7) => {
 
   const { data, error } = await supabaseAdmin
     .from('daily_logs')
-    .select('log_date, total_calories, total_sugar, total_carbs, total_protein, total_fat, total_water_ml')
+    .select('log_date, total_calories, total_sugar, total_carbs, total_protein, total_fat, total_water_ml, log_entries(*, food_products(product_name, brand_name, serving_size_g, image_url))')
     .eq('user_id', userId)
     .gte('log_date', fromDate)
     .order('log_date', { ascending: true });
 
   if (error) throw { statusCode: 400, message: error.message };
+
+  if (data) {
+    for (const day of data) {
+      if (day.log_entries) {
+        day.log_entries = day.log_entries.map(serializeLogEntry);
+      }
+    }
+  }
+
   return data;
 };
 
